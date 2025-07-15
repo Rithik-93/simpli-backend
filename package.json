@@ -5,6 +5,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "npx tsc -b && node dist/index.js",
+    "build": "npx tsc -b",
     "dev": "ts-node src/index.ts",
     "dev2": "tsc -b && node dist/index.js"
   },
