@@ -7,7 +7,8 @@
     "start": "npx tsc -b && node dist/index.js",
     "build": "npx tsc -b",
     "dev": "ts-node src/index.ts",
-    "dev2": "tsc -b && node dist/index.js"
+    "dev2": "tsc -b && node dist/index.js",
+    "setup-whatsapp": "node setup-whatsapp.js"
   },
   "keywords": [],
   "author": "",
@@ -18,7 +19,11 @@
     "dotenv": "^17.2.0",
     "express": "^4.18.2",
     "express-rate-limit": "^7.1.5",
-    "twilio": "^5.7.3"
+    "wbm": "^1.1.16",
+    "puppeteer": "^2.1.1",
+    "qrcode-terminal": "^0.12.0",
+    "rimraf": "^3.0.2",
+    "rxjs": "^6.5.5"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",

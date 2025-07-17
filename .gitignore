@@ -13,6 +13,9 @@ dist
 dist-ssr
 *.local
 
+# WhatsApp session data
+tmp/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

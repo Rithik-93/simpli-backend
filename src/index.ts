@@ -1,26 +1,15 @@
 import express from 'express';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
-import twilio from 'twilio';
 import dotenv from 'dotenv';
+// @ts-ignore: No type definitions for '../api.js'
+import wbm from '../api.js';
 
-// Load environment variables
+// Load environment variables from .env file
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-
-// Twilio configuration
-const accountSid = process.env.TWILIO_ACCOUNT_SID;
-const authToken = process.env.TWILIO_AUTH_TOKEN;
-const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
-
-if (!accountSid || !authToken || !twilioPhoneNumber) {
-  throw new Error('TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_PHONE_NUMBER must be set');
-}
-
-// Initialize Twilio client
-const twilioClient = accountSid && authToken ? twilio(accountSid, authToken) : null;
 
 // In-memory storage for OTPs (use Redis or database in production)
 const otpStorage = new Map<string, { otp: string; expiry: number; attempts: number }>();
@@ -28,7 +17,7 @@ const otpStorage = new Map<string, { otp: string; expiry: number; attempts: numb
 const frontendUrl = process.env.FRONTEND_URL;
 
 if (!frontendUrl) {
-    throw new Error('FRONTEND_URL is not set');
+  throw new Error('FRONTEND_URL is not set');
 }
 
 // CORS configuration
@@ -68,34 +57,34 @@ const generateOTP = (): string => {
 const normalizeMobileNumber = (mobile: string): string => {
   // Remove all spaces and special characters except +
   let cleanNumber = mobile.replace(/[^\d+]/g, '');
-  
+
   // If number starts with +91, return as is
   if (cleanNumber.startsWith('+91')) {
     return cleanNumber;
   }
-  
+
   // If number starts with 91 (without +), add +
   if (cleanNumber.startsWith('91') && cleanNumber.length === 12) {
     return '+' + cleanNumber;
   }
-  
+
   // If number is 10 digits and starts with 6,7,8,9 (Indian mobile), add +91
   if (cleanNumber.length === 10 && /^[6-9]/.test(cleanNumber)) {
     return '+91' + cleanNumber;
   }
-  
+
   // If number starts with 0 (remove leading 0 and add +91)
   if (cleanNumber.startsWith('0') && cleanNumber.length === 11) {
     return '+91' + cleanNumber.substring(1);
   }
-  
+
   return cleanNumber;
 };
 
 // Utility function to validate Indian mobile number
 const isValidMobileNumber = (mobile: string): boolean => {
   const normalizedNumber = normalizeMobileNumber(mobile);
-  
+
   // Check if it's a valid Indian mobile number (+91 followed by 10 digits starting with 6,7,8,9)
   const indianMobileRegex = /^\+91[6-9]\d{9}$/;
   return indianMobileRegex.test(normalizedNumber);
@@ -103,19 +92,16 @@ const isValidMobileNumber = (mobile: string): boolean => {
 
 // SMS service function
 const sendSMSOTP = async (mobile: string, otp: string): Promise<boolean> => {
-  if (!twilioClient || !twilioPhoneNumber) {
-    console.log(`OTP for ${mobile}: ${otp} (SMS service not configured)`);
-    return false;
-  }
 
   try {
-    const message = await twilioClient.messages.create({
-      body: `Your OTP for login is: ${otp}. This OTP is valid for 5 minutes.`,
-      from: twilioPhoneNumber,
-      to: mobile
-    });
+    await wbm.start({ showBrowser: true, qrCodeData: true, }).then(async () => {
+      const phones = ['918861993863'];
+      const message = `Your OTP is ${otp}`;
+      await wbm.send(phones, message);
+      await wbm.end();
+    }).catch((err: any) => console.log(err));
 
-    console.log(`SMS sent successfully to ${mobile}. Message SID: ${message.sid}`);
+    // console.log(`SMS sent successfully to ${mobile}. Message SID: ${message.sid}`);
     return true;
   } catch (error) {
     console.error(`Failed to send SMS to ${mobile}:`, error);
@@ -153,7 +139,7 @@ app.post('/api/auth/send-otp', otpRateLimit, async (req, res) => {
     // Send SMS OTP
     const smsSent = await sendSMSOTP(normalizedMobile, otp);
 
-    if(smsSent === false){
+    if (smsSent === false) {
       return res.status(400).json({
         success: false,
         error: 'Failed to send SMS'
@@ -227,7 +213,7 @@ app.post('/api/auth/verify-otp', verifyRateLimit, (req, res) => {
       // Increment attempts
       storedOtpData.attempts++;
       otpStorage.set(normalizedMobile, storedOtpData);
-      
+
       return res.status(400).json({
         success: false,
         error: 'Invalid OTP',
@@ -298,7 +284,7 @@ app.post('/api/auth/resend-otp', otpRateLimit, async (req, res) => {
     // Send SMS OTP
     const smsSent = await sendSMSOTP(normalizedMobile, otp);
 
-    if(smsSent === false){
+    if (smsSent === false) {
       return res.status(400).json({
         success: false,
         error: 'Failed to send SMS'

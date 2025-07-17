@@ -1,11 +1,13 @@
 {
-	"folders": [
-		{
-			"path": "../../simplifyhomes"
-		},
-		{
-			"path": ".."
-		}
-	],
-	"settings": {}
+    "folders": [
+        {
+            "path": "../../simplifyhomes"
+        },
+        {
+            "path": ".."
+        },
+        {
+            "path": "../../wbm"
+        }
+    ]
 }
