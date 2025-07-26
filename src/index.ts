@@ -2,8 +2,9 @@ import express from 'express';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
-// @ts-ignore: No type definitions for '../api.js'
-import wbm from '../api.js';
+import sendWhatsAppMessage from './sendWhapiOTP';
+import connectDB from './config/database';
+import cmsRoutes from './routes/cms';
 
 // Load environment variables from .env file
 dotenv.config();
@@ -13,6 +14,9 @@ const PORT = process.env.PORT || 3000;
 
 // In-memory storage for OTPs (use Redis or database in production)
 const otpStorage = new Map<string, { otp: string; expiry: number; attempts: number }>();
+
+// WhatsApp API configuration
+const WHATSAPP_API_ENABLED = true;
 
 const frontendUrl = process.env.FRONTEND_URL;
 
@@ -53,29 +57,29 @@ const generateOTP = (): string => {
   return Math.floor(100000 + Math.random() * 900000).toString();
 };
 
-// Utility function to normalize mobile number (add +91 if needed)
+// Utility function to normalize mobile number (add 91 if needed)
 const normalizeMobileNumber = (mobile: string): string => {
-  // Remove all spaces and special characters except +
-  let cleanNumber = mobile.replace(/[^\d+]/g, '');
+  // Remove all spaces and special characters
+  let cleanNumber = mobile.replace(/[^\d]/g, '');
 
-  // If number starts with +91, return as is
-  if (cleanNumber.startsWith('+91')) {
+  // If number starts with +91, remove + and return
+  if (mobile.startsWith('+91')) {
     return cleanNumber;
   }
 
-  // If number starts with 91 (without +), add +
+  // If number starts with 91 and is 12 digits, return as is
   if (cleanNumber.startsWith('91') && cleanNumber.length === 12) {
-    return '+' + cleanNumber;
+    return cleanNumber;
   }
 
-  // If number is 10 digits and starts with 6,7,8,9 (Indian mobile), add +91
+  // If number is 10 digits and starts with 6,7,8,9 (Indian mobile), add 91
   if (cleanNumber.length === 10 && /^[6-9]/.test(cleanNumber)) {
-    return '+91' + cleanNumber;
+    return '91' + cleanNumber;
   }
 
-  // If number starts with 0 (remove leading 0 and add +91)
+  // If number starts with 0 (remove leading 0 and add 91)
   if (cleanNumber.startsWith('0') && cleanNumber.length === 11) {
-    return '+91' + cleanNumber.substring(1);
+    return '91' + cleanNumber.substring(1);
   }
 
   return cleanNumber;
@@ -85,29 +89,54 @@ const normalizeMobileNumber = (mobile: string): string => {
 const isValidMobileNumber = (mobile: string): boolean => {
   const normalizedNumber = normalizeMobileNumber(mobile);
 
-  // Check if it's a valid Indian mobile number (+91 followed by 10 digits starting with 6,7,8,9)
-  const indianMobileRegex = /^\+91[6-9]\d{9}$/;
+  // Check if it's a valid Indian mobile number (91 followed by 10 digits starting with 6,7,8,9)
+  const indianMobileRegex = /^91[6-9]\d{9}$/;
   return indianMobileRegex.test(normalizedNumber);
 };
 
-// SMS service function
-const sendSMSOTP = async (mobile: string, otp: string): Promise<boolean> => {
-
+// SMS service function using whapi.cloud
+const sendSMSOTP = async (mobile: string, otp: string): Promise<{ success: boolean; method: string; error?: string }> => {
   try {
-    await wbm.start({ showBrowser: true, qrCodeData: true, }).then(async () => {
-      const phones = ['918861993863'];
-      const message = `Your OTP is ${otp}`;
-      await wbm.send(phones, message);
-      await wbm.end();
-    }).catch((err: any) => console.log(err));
-
-    // console.log(`SMS sent successfully to ${mobile}. Message SID: ${message.sid}`);
-    return true;
+    console.log(`📱 Sending OTP via WhatsApp API to ${mobile}`);
+    
+    const message = `🔐 Your SimplifyHomes OTP is: ${otp}\n\nThis OTP will expire in 5 minutes.\nDo not share this with anyone.`;
+    
+    await sendWhatsAppMessage({
+      to: mobile,
+      body: message,
+      typing_time: 0
+    });
+    
+    console.log(`✅ OTP sent successfully to ${mobile} via WhatsApp API`);
+    return { success: true, method: 'whatsapp_api' };
+    
   } catch (error) {
-    console.error(`Failed to send SMS to ${mobile}:`, error);
-    return false;
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error(`❌ Failed to send OTP to ${mobile}:`, errorMessage);
+    
+    return { 
+      success: false, 
+      method: 'whatsapp_api', 
+      error: "Internal Server Error. Please try again later." 
+    };
   }
 };
+
+// Add fallback SMS service placeholder
+const sendFallbackSMS = async (mobile: string, otp: string): Promise<boolean> => {
+  // TODO: Implement actual SMS service (TextLocal, MSG91, etc.)
+  console.log(`📧 Fallback SMS service not implemented for ${mobile}`);
+  return false;
+};
+
+// Route to get WhatsApp API status
+app.get('/api/whatsapp/status', (req, res) => {
+  res.json({
+    status: 'ready',
+    message: 'WhatsApp API is ready (using whapi.cloud)',
+    method: 'api'
+  });
+});
 
 // Route to send OTP
 app.post('/api/auth/send-otp', otpRateLimit, async (req, res) => {
@@ -139,19 +168,19 @@ app.post('/api/auth/send-otp', otpRateLimit, async (req, res) => {
     // Send SMS OTP
     const smsSent = await sendSMSOTP(normalizedMobile, otp);
 
-    if (smsSent === false) {
+    if (smsSent.success === false) {
       return res.status(400).json({
         success: false,
-        error: 'Failed to send SMS'
+        error: smsSent.error || 'Failed to send SMS'
       });
     }
 
     res.json({
-      success: smsSent,
+      success: smsSent.success,
       message: 'OTP sent successfully',
       data: {
         mobile: normalizedMobile,
-        smsSent,
+        smsSent: smsSent.method,
         otp: process.env.NODE_ENV === 'development' ? otp : undefined
       }
     });
@@ -284,19 +313,19 @@ app.post('/api/auth/resend-otp', otpRateLimit, async (req, res) => {
     // Send SMS OTP
     const smsSent = await sendSMSOTP(normalizedMobile, otp);
 
-    if (smsSent === false) {
+    if (smsSent.success === false) {
       return res.status(400).json({
         success: false,
-        error: 'Failed to send SMS'
+        error: smsSent.error || 'Failed to send SMS'
       });
     }
 
     res.json({
-      success: true,
+      success: smsSent.success,
       message: 'OTP resent successfully',
       data: {
         mobile: normalizedMobile,
-        smsSent,
+        smsSent: smsSent.method,
         otp: process.env.NODE_ENV === 'development' ? otp : undefined
       }
     });
@@ -308,6 +337,42 @@ app.post('/api/auth/resend-otp', otpRateLimit, async (req, res) => {
       error: 'Internal server error'
     });
   }
+});
+
+// Add CMS routes
+app.use('/api/cms', cmsRoutes);
+
+// Add production monitoring endpoint
+app.get('/api/admin/stats', (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      whatsappStatus: 'ready',
+      uptime: process.uptime(),
+      memoryUsage: process.memoryUsage(),
+      activeOTPs: otpStorage.size,
+      environment: process.env.NODE_ENV || 'development'
+    }
+  });
+});
+
+// Add OTP cleanup endpoint
+app.post('/api/admin/cleanup-expired-otps', (req, res) => {
+  const now = Date.now();
+  let cleanedCount = 0;
+  
+  for (const [mobile, otpData] of otpStorage.entries()) {
+    if (now > otpData.expiry) {
+      otpStorage.delete(mobile);
+      cleanedCount++;
+    }
+  }
+  
+  res.json({
+    success: true,
+    message: `Cleaned up ${cleanedCount} expired OTPs`,
+    remainingOTPs: otpStorage.size
+  });
 });
 
 // Error handling middleware
@@ -327,10 +392,21 @@ app.use('*', (req, res) => {
   });
 });
 
+// Graceful shutdown handler
+process.on('SIGINT', async () => {
+  console.log('\n🛑 Shutting down gracefully...');
+  process.exit(0);
+});
+
+// Connect to MongoDB
+connectDB();
+
 // Start server
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`🚀 Server is running on port ${PORT}`);
-  console.log(`📱 Health check: http://localhost:${PORT}/api/health`);
+  console.log(`📱 Health check: http://localhost:${PORT}/health`);
+  console.log(`📱 WhatsApp API Status: http://localhost:${PORT}/api/whatsapp/status`);
+  console.log(`📊 CMS API: http://localhost:${PORT}/api/cms`);
 });
 
 export default app;
