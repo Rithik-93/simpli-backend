@@ -1,6 +1,6 @@
 # WhatsApp OTP Setup Guide
 
-This guide will help you set up WhatsApp for OTP delivery in the SimplifyHomes backend service.
+This guide will help you set up WhatsApp for OTP delivery in the Interior Calculator backend service.
 
 ## Prerequisites
 
@@ -120,13 +120,13 @@ All OTP endpoints now return WhatsApp-specific responses:
 OTP messages are sent in the following format:
 
 ```
-🔐 Your OTP for SimplifyHomes is: 123456
+🔐 Your OTP is: 123456
 
 This OTP will expire in 5 minutes.
 
 Please do not share this OTP with anyone.
 
-- SimplifyHomes Team
+- Interior Calculator Team
 ```
 
 ## Troubleshooting

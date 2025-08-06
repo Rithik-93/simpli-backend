@@ -170,7 +170,7 @@ const sendSMSOTP = async (mobile: string, otp: string): Promise<{ success: boole
       }
       
       const phones = [mobile];
-      const message = `🔐 Your SimplifyHomes OTP is: ${otp}\n\nThis OTP will expire in 5 minutes.\nDo not share this with anyone.`;
+      const message = `🔐 Your OTP is: ${otp}\n\nThis OTP will expire in 5 minutes.\nDo not share this with anyone.`;
       
       await wbm.send(phones, message);
       

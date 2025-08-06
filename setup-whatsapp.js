@@ -1,6 +1,6 @@
 const wbm = require('wbm');
 
-console.log('🔧 WhatsApp Setup for SimplifyHomes OTP Service');
+console.log('🔧 WhatsApp Setup for Interior Calculator OTP Service');
 console.log('==============================================');
 console.log('');
 console.log('This script will help you set up WhatsApp for OTP delivery.');

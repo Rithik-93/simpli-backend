@@ -1,4 +1,4 @@
-# SimplifyHomes Backend - Mobile OTP Authentication
+# Interior Calculator Backend - Mobile OTP Authentication
 
 A Node.js Express server for mobile login OTP verification with Twilio SMS integration, rate limiting, and CORS configuration.
 

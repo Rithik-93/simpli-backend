@@ -1,6 +1,6 @@
 # CMS Setup Guide
 
-This guide will help you set up the CMS (Content Management System) with MongoDB integration for the SimplifyHomes application.
+This guide will help you set up the CMS (Content Management System) with MongoDB integration for the Interior Calculator application.
 
 ## Prerequisites
 
@@ -30,8 +30,8 @@ NODE_ENV=development
 FRONTEND_URL=http://localhost:5173
 
 # MongoDB Connection String
-MONGODB_URI=mongodb://localhost:27017/simplifyhomes
-# For MongoDB Atlas: mongodb+srv://username:password@cluster.mongodb.net/simplifyhomes
+MONGODB_URI=mongodb://localhost:27017/interior-calculator
+# For MongoDB Atlas: mongodb+srv://username:password@cluster.mongodb.net/interior-calculator
 
 # WhatsApp API Configuration (if using whapi.cloud)
 WHATSAPP_API_KEY=your_whatsapp_api_key_here
@@ -46,7 +46,7 @@ JWT_SECRET=your_jwt_secret_here
 #### Option A: Local MongoDB
 1. Install MongoDB locally
 2. Start MongoDB service
-3. Create database: `simplifyhomes`
+3. Create database: `interior-calculator`
 
 #### Option B: MongoDB Atlas
 1. Create a MongoDB Atlas account
@@ -71,7 +71,7 @@ The server will start on `http://localhost:3000`
 
 ### 1. Environment Configuration
 
-Create a `.env` file in the `simplifyhomes` directory:
+Create a `.env` file in the `interior-calculator` directory:
 
 ```env
 VITE_API_URL=http://localhost:3000/api
@@ -80,7 +80,7 @@ VITE_API_URL=http://localhost:3000/api
 ### 2. Start the Frontend
 
 ```bash
-cd simplifyhomes
+cd interior-calculator
 npm run dev
 ```
 

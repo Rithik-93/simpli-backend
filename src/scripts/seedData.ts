@@ -66,6 +66,12 @@ const seedCategories = async () => {
       type: 'singleLine' as const,
       description: 'Per square foot services',
       isActive: true
+    },
+    {
+      name: 'Optional Services',
+      type: 'service' as const,
+      description: 'Optional services for home decoration',
+      isActive: true
     }
   ];
 
@@ -290,6 +296,48 @@ const seedItems = async (categories: any[]) => {
       basePrice: 80,
       description: 'Electrical and wiring per sq ft',
       isActive: true
+    },
+
+    // Optional Services
+    {
+      name: 'Sofa',
+      category: 'Optional Services',
+      type: 'service' as const,
+      basePrice: 50000,
+      description: 'Premium quality sofa for your home',
+      isActive: true
+    },
+    {
+      name: 'Dining Table',
+      category: 'Optional Services',
+      type: 'service' as const,
+      basePrice: 35000,
+      description: 'Premium dining table for your home',
+      isActive: true
+    },
+    {
+      name: 'Carpets',
+      category: 'Optional Services',
+      type: 'service' as const,
+      basePrice: 15000,
+      description: 'Premium carpets for your home',
+      isActive: true
+    },
+    {
+      name: 'Designer Lights',
+      category: 'Optional Services',
+      type: 'service' as const,
+      basePrice: 25000,
+      description: 'Premium designer lights for your home',
+      isActive: true
+    },
+    {
+      name: 'Curtains',
+      category: 'Optional Services',
+      type: 'service' as const,
+      basePrice: 20000,
+      description: 'Premium curtains for your home',
+      isActive: true
     }
   ];
 
@@ -312,14 +360,14 @@ const seedUsers = async () => {
   const users = [
     {
       username: 'admin',
-      email: 'admin@simplifyhomes.com',
+      email: 'admin@interior-calculator.com',
       password: 'admin123',
       role: 'admin' as const,
       isActive: true
     },
     {
       username: 'editor',
-      email: 'editor@simplifyhomes.com',
+      email: 'editor@interior-calculator.com',
       password: 'editor123',
       role: 'editor' as const,
       isActive: true

@@ -1,4 +1,8 @@
 import axios from 'axios';
+import dotenv from 'dotenv';
+
+// Load environment variables
+dotenv.config();
 
 interface WhatsAppMessageOptions {
   to: string;
@@ -7,13 +11,21 @@ interface WhatsAppMessageOptions {
 }
 
 const sendWhatsAppMessage = async (options: WhatsAppMessageOptions) => {
+  // Check if WHAPI token is configured
+  const whapiToken = process.env.WHAPI_TOKEN;
+  const whapiBaseUrl = process.env.WHAPI_BASE_URL || 'https://gate.whapi.cloud';
+  
+  if (!whapiToken) {
+    throw new Error('WHAPI_TOKEN is not configured in environment variables');
+  }
+
   const requestOptions = {
     method: 'POST',
-    url: 'https://gate.whapi.cloud/messages/text',
+    url: `${whapiBaseUrl}/messages/text`,
     headers: {
       accept: 'application/json',
       'content-type': 'application/json',
-      authorization: 'Bearer dHV21x164giNS0JA73aNpiq077ExApSG'
+      authorization: `Bearer ${whapiToken}`
     },
     data: {
       typing_time: options.typing_time || 0,

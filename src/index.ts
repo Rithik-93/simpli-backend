@@ -99,7 +99,7 @@ const sendSMSOTP = async (mobile: string, otp: string): Promise<{ success: boole
   try {
     console.log(`📱 Sending OTP via WhatsApp API to ${mobile}`);
     
-    const message = `🔐 Your SimplifyHomes OTP is: ${otp}\n\nThis OTP will expire in 5 minutes.\nDo not share this with anyone.`;
+    const message = `🔐 Your OTP is: ${otp}\n\nThis OTP will expire in 5 minutes.\nDo not share this with anyone.`;
     
     await sendWhatsAppMessage({
       to: mobile,
@@ -121,22 +121,6 @@ const sendSMSOTP = async (mobile: string, otp: string): Promise<{ success: boole
     };
   }
 };
-
-// Add fallback SMS service placeholder
-const sendFallbackSMS = async (mobile: string, otp: string): Promise<boolean> => {
-  // TODO: Implement actual SMS service (TextLocal, MSG91, etc.)
-  console.log(`📧 Fallback SMS service not implemented for ${mobile}`);
-  return false;
-};
-
-// Route to get WhatsApp API status
-app.get('/api/whatsapp/status', (req, res) => {
-  res.json({
-    status: 'ready',
-    message: 'WhatsApp API is ready (using whapi.cloud)',
-    method: 'api'
-  });
-});
 
 // Route to send OTP
 app.post('/api/auth/send-otp', otpRateLimit, async (req, res) => {
