@@ -14,7 +14,7 @@ export interface CMSItem {
 }
 
 // MongoDB Document interface
-export interface CMSItemDocument extends CMSItem, Document {}
+export type CMSItemDocument = Omit<CMSItem, 'id'> & Document;
 
 // API Request/Response interfaces
 export interface CreateItemRequest {
@@ -78,7 +78,7 @@ export interface CMSCategory {
   updatedAt: Date;
 }
 
-export interface CMSCategoryDocument extends CMSCategory, Document {}
+export type CMSCategoryDocument = Omit<CMSCategory, 'id'> & Document;
 
 export interface CreateCategoryRequest {
   name: string;
@@ -102,7 +102,7 @@ export interface CMSUser {
   updatedAt: Date;
 }
 
-export interface CMSUserDocument extends CMSUser, Document {}
+export type CMSUserDocument = Omit<CMSUser, 'id'> & Document;
 
 export interface CreateUserRequest {
   username: string;

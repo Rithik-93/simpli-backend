@@ -1,1 +1,1 @@
-{"root":["./src/index.ts","./src/index1.ts","./src/types/sendotp.d.ts"],"version":"5.8.3"}
+{"root":["./src/index.ts","./src/index1.ts","./src/sendwhapiotp.ts","./src/config/database.ts","./src/models/category.ts","./src/models/item.ts","./src/models/user.ts","./src/routes/cms.ts","./src/scripts/seeddata.ts","./src/types/cms.ts","./src/types/sendotp.d.ts"],"version":"5.8.3"}
