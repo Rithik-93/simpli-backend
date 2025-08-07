@@ -386,11 +386,12 @@ process.on('SIGINT', async () => {
 connectDB();
 
 // Start server
-app.listen(PORT, async () => {
+app.listen(Number(PORT), '0.0.0.0', async () => {
   console.log(`🚀 Server is running on port ${PORT}`);
   console.log(`📱 Health check: http://localhost:${PORT}/health`);
   console.log(`📱 WhatsApp API Status: http://localhost:${PORT}/api/whatsapp/status`);
   console.log(`📊 CMS API: http://localhost:${PORT}/api/cms`);
+  console.log(`🌐 External access: http://103.160.107.26:${PORT}/health`);
 });
 
 export default app;
