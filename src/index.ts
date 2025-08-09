@@ -26,10 +26,9 @@ if (!frontendUrl) {
 
 // CORS configuration
 app.use(cors({
-  origin: [frontendUrl], // Add your frontend URLs
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  origin: process.env.FRONTEND_URL, // your domain
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  allowedHeaders: ["Content-Type", "Authorization"]
 }));
 
 // JSON parser middleware (increase limit for base64 PDFs)
