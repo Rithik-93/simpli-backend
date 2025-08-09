@@ -26,7 +26,7 @@ if (!frontendUrl) {
 
 // CORS configuration
 app.use(cors({
-  origin: ["https://simplifyhome.vercel.app"], // Add your frontend URLs
+  origin: [frontendUrl], // Add your frontend URLs
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization']
