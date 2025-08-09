@@ -26,7 +26,7 @@ if (!frontendUrl) {
 
 // CORS configuration
 app.use(cors({
-  origin: [frontendUrl], // Add your frontend URLs
+  origin: ["https://simplifyhome.vercel.app"], // Add your frontend URLs
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization']
@@ -386,7 +386,7 @@ process.on('SIGINT', async () => {
 connectDB();
 
 // Start server
-app.listen(Number(PORT), '0.0.0.0', async () => {
+app.listen(3000, async () => {
   console.log(`🚀 Server is running on port ${PORT}`);
   console.log(`📱 Health check: http://localhost:${PORT}/health`);
   console.log(`📱 WhatsApp API Status: http://localhost:${PORT}/api/whatsapp/status`);

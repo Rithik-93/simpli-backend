@@ -6,8 +6,7 @@ import dotenv from 'dotenv';
 import wbm from '../api.js';
 // @ts-ignore: No type definitions for 'qrcode-terminal'
 import * as qrcode from 'qrcode-terminal';
-import fs from 'fs';
-import path from 'path';
+import * as QRCode from 'qrcode';
 
 // Load environment variables from .env file
 dotenv.config();
@@ -112,30 +111,124 @@ const initializeWhatsAppSession = async (): Promise<void> => {
   sessionStatus = 'connecting';
   
   try {
-    await wbm.start({ 
-      showBrowser: false, // Set to false for headless mode
+    console.log('🔄 Starting WhatsApp session...');
+    const result = await wbm.start({ 
+      showBrowser: process.env.NODE_ENV === 'development', // Only show browser in development
       qrCodeData: true,
       session: true, // Enable session persistence
-      sessionFolderPath: './wbm_session', // Session storage folder
-      qrCodeValue: (qrCodeData: string) => {
-        // Display QR code in terminal
+      qrCodeValue: async (qrCodeData: any) => {
         console.log('\n🔗 WhatsApp QR Code:');
-        qrcode.generate(qrCodeData, { small: true });
+        
+        // Handle different data structures
+        let rawQrData = null;
+        let canvasDataUrl = null;
+        
+        if (typeof qrCodeData === 'string') {
+          // Old format - just raw QR data
+          rawQrData = qrCodeData;
+        } else if (qrCodeData && typeof qrCodeData === 'object') {
+          // New format - object with both canvas and raw data
+          rawQrData = qrCodeData.rawQrData;
+          canvasDataUrl = qrCodeData.canvasDataUrl;
+          console.log(`📊 QR Data type: ${qrCodeData.type}`);
+        }
+        
+        // Display QR code in terminal if we have raw data
+        if (rawQrData) {
+          qrcode.generate(rawQrData, { small: true });
+          console.log('✅ QR Code displayed in terminal above');
+        } else {
+          console.log('⚠️  Raw QR data not available for terminal display');
+        }
+        
         console.log('\n📱 Scan the QR code above with your WhatsApp mobile app');
         console.log(`🌐 Or visit: http://localhost:${PORT}/api/whatsapp/qr\n`);
         
-        // Also store for web access
-        qrCodeDataUrl = qrCodeData;
+        // Set QR code data URL for web access
+        try {
+          if (canvasDataUrl) {
+            // Use canvas data URL directly
+            qrCodeDataUrl = canvasDataUrl;
+            console.log('✅ QR Code canvas data URL received for web access');
+          } else if (rawQrData) {
+            // Convert raw QR data to image data URL
+            qrCodeDataUrl = await QRCode.toDataURL(rawQrData);
+            console.log('✅ QR Code image generated from raw data for web access');
+          } else {
+            console.error('❌ No QR code data available');
+          }
+        } catch (error) {
+          console.error('❌ Failed to generate QR code image:', error);
+          qrCodeDataUrl = rawQrData || qrCodeData; // Fallback
+        }
+        
+        sessionStatus = 'connecting'; // Set status to connecting when QR code is generated
       }
-    }).then(async () => {
-      console.log('WhatsApp session started successfully');
+    });
+
+    // Check if we got a QR code (means we need to scan)
+    if ((typeof result === 'string' && result.length > 0) || 
+        (result && typeof result === 'object' && (result.rawQrData || result.canvasDataUrl))) {
+      console.log('📱 QR Code generated. Waiting for scan...');
+      sessionStatus = 'connecting'; // Keep as connecting until scanned
+      
+      // Generate QR code image data URL if not already done
+      if (!qrCodeDataUrl) {
+        try {
+          if (typeof result === 'string') {
+            // Old format - string result
+            if (result.startsWith('data:image/')) {
+              qrCodeDataUrl = result;
+              console.log('✅ QR Code canvas data URL received for web access');
+            } else {
+              qrCodeDataUrl = await QRCode.toDataURL(result);
+              console.log('✅ QR Code image generated from raw data for web access');
+            }
+          } else if (result && typeof result === 'object') {
+            // New format - object result
+            if (result.canvasDataUrl) {
+              qrCodeDataUrl = result.canvasDataUrl;
+              console.log('✅ QR Code canvas data URL received for web access');
+            } else if (result.rawQrData) {
+              qrCodeDataUrl = await QRCode.toDataURL(result.rawQrData);
+              console.log('✅ QR Code image generated from raw data for web access');
+            }
+          }
+        } catch (error) {
+          console.error('❌ Failed to generate QR code image:', error);
+          qrCodeDataUrl = typeof result === 'string' ? result : result.rawQrData || result.canvasDataUrl;
+        }
+      }
+      
+      // Don't wait here in the initialization - let it be handled asynchronously
+      // The scanning will be handled by the qrCodeValue callback and waitQRCode
+      console.log('🔄 QR Code ready for scanning. Session will connect once scanned.');
+      
+      // Start waiting for QR code scan in background
+      wbm.waitQRCode().then(() => {
+        console.log('✅ WhatsApp QR Code scanned successfully!');
+        wbmSession = wbm;
+        sessionStatus = 'connected';
+        qrCodeDataUrl = null; // Clear QR code once connected
+        sessionFailureCount = 0; // Reset failure count
+      }).catch((waitError: any) => {
+        console.error('❌ QR Code scanning failed:', waitError);
+        sessionStatus = 'disconnected';
+        sessionFailureCount++;
+      });
+      
+    } else if (result === undefined) {
+      // Already authenticated or session restored
+      console.log('✅ WhatsApp session started successfully (existing session)');
       wbmSession = wbm;
       sessionStatus = 'connected';
-      qrCodeDataUrl = null; // Clear QR code once connected
-    }).catch((err: any) => {
-      console.error('WhatsApp session error:', err);
-      sessionStatus = 'disconnected';
-    });
+      qrCodeDataUrl = null;
+      sessionFailureCount = 0;
+    } else {
+      // Some other case
+      console.log('🔄 WhatsApp session initialization completed, checking status...');
+      // We'll let the session status be determined by other checks
+    }
   } catch (error) {
     console.error('Failed to initialize WhatsApp session:', error);
     sessionStatus = 'disconnected';
@@ -155,19 +248,23 @@ const sendSMSOTP = async (mobile: string, otp: string): Promise<{ success: boole
       
       // Initialize session if not already connected
       if (!wbmSession || sessionStatus !== 'connected') {
+        console.log('🔄 WhatsApp session not ready, initializing...');
         await initializeWhatsAppSession();
       }
       
       // Wait for session to be ready with timeout
       let attempts = 0;
-      while (sessionStatus === 'connecting' && attempts < 30) {
+      while (sessionStatus === 'connecting' && attempts < 60) { // Increased timeout for QR scanning
+        console.log(`⏳ Waiting for WhatsApp authentication... (${attempts + 1}/60s)`);
         await new Promise(resolve => setTimeout(resolve, 1000));
         attempts++;
       }
       
       if (sessionStatus !== 'connected') {
-        throw new Error('WhatsApp session not connected after timeout');
+        throw new Error(`WhatsApp session not connected after ${attempts} seconds. Status: ${sessionStatus}`);
       }
+      
+      console.log('✅ WhatsApp session verified, sending message...');
       
       const phones = [mobile];
       const message = `🔐 Your OTP is: ${otp}\n\nThis OTP will expire in 5 minutes.\nDo not share this with anyone.`;

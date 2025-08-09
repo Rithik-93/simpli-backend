@@ -6,6 +6,17 @@ When deploying WhatsApp Web automation to cloud services like render.com, you ca
 ## Solution
 This implementation provides a web-based QR code scanner that you can access remotely.
 
+## Environment Variables
+
+Set these environment variables in your deployment platform:
+
+```bash
+NODE_ENV=production
+PORT=3000
+FRONTEND_URL=https://your-frontend-domain.com
+ADMIN_TOKEN=your-secure-admin-token-here  # For QR code endpoint security
+```
+
 ## How to Deploy
 
 ### 1. Deploy to Render.com (or similar service)

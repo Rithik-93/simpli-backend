@@ -8,7 +8,7 @@ var rimraf = require("rimraf");
 let browser = null;
 let page = null;
 let counter = { fails: 0, success: 0 }
-const tmpPath = path.resolve(__dirname, '../tmp');
+const tmpPath = path.resolve(__dirname, './wbm_session');
 
 const SELECTORS = {
     LOADING: "progress",
@@ -16,13 +16,15 @@ const SELECTORS = {
     QRCODE_PAGE: "body > div > div > .landing-wrapper",
     QRCODE_DATA: "div[data-ref]",
     QRCODE_DATA_ATTR: "data-ref",
+    QRCODE_CANVAS: "canvas[aria-label*='Scan this QR code']",
+    QRCODE_CONTAINER: "div[data-ref]",
     SEND_BUTTON: 'div:nth-child(2) > button > span[data-icon="send"]'
 };
 
 /**
  * Initialize browser, page and setup page desktop mode
  */
-async function start({ showBrowser = false, qrCodeData = false, session = true } = {}) {
+async function start({ showBrowser = true, qrCodeData = true, session = true } = {}) {
     if (!session) {
         deleteSession(tmpPath);
     }
@@ -44,18 +46,30 @@ async function start({ showBrowser = false, qrCodeData = false, session = true }
         await page.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/61.0.3163.100 Safari/537.36");
         page.setDefaultTimeout(60000);
 
-        await page.goto("https://web.whatsapp.com");
-        if (session && await isAuthenticated()) {
-            return;
-        }
-        else {
-            if (qrCodeData) {
-                console.log('Getting QRCode data...');
-                console.log('Note: You should use wbm.waitQRCode() inside wbm.start() to avoid errors.');
-                return await getQRCodeData();
-            } else {
-                await generateQRCode();
+        console.log('Loading WhatsApp Web...');
+        await page.goto("https://web.whatsapp.com", { waitUntil: 'networkidle2' });
+        
+        if (session) {
+            try {
+                const authenticated = await isAuthenticated();
+                if (authenticated) {
+                    console.log('✅ Already authenticated from saved session');
+                    return;
+                }
+            } catch (error) {
+                console.log('❌ Authentication check failed:', error.message);
+                console.log('🔄 Will proceed to show QR code...');
             }
+        }
+        
+        if (qrCodeData) {
+            console.log('Getting QRCode data...');
+            console.log('Note: You should use wbm.waitQRCode() inside wbm.start() to avoid errors.');
+            const qrData = await getQRCodeData();
+            // Return the QR data but don't mark as connected yet
+            return qrData;
+        } else {
+            await generateQRCode();
         }
 
     } catch (err) {
@@ -69,17 +83,37 @@ async function start({ showBrowser = false, qrCodeData = false, session = true }
  */
 function isAuthenticated() {
     console.log('Authenticating...');
-    return merge(needsToScan(page), isInsideChat(page))
-        .pipe(take(1))
-        .toPromise();
+    return new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+            reject(new Error('Authentication timeout after 30 seconds'));
+        }, 30000); // 30 second timeout
+
+        merge(needsToScan(page), isInsideChat(page))
+            .pipe(take(1))
+            .toPromise()
+            .then((result) => {
+                clearTimeout(timeout);
+                resolve(result);
+            })
+            .catch((error) => {
+                clearTimeout(timeout);
+                reject(error);
+            });
+    });
 }
 
 function needsToScan() {
     return from(
         page
             .waitForSelector(SELECTORS.QRCODE_PAGE, {
-                timeout: 0,
-            }).then(() => false)
+                timeout: 15000, // 15 second timeout instead of infinite
+            }).then(() => {
+                console.log('QR Code page detected - needs scanning');
+                return false;
+            }).catch(() => {
+                // QR code page not found, might already be authenticated
+                return null;
+            })
     );
 }
 
@@ -88,8 +122,14 @@ function isInsideChat() {
         page
             .waitForFunction(SELECTORS.INSIDE_CHAT,
                 {
-                    timeout: 0,
-                }).then(() => true)
+                    timeout: 15000, // 15 second timeout instead of infinite
+                }).then(() => {
+                    console.log('Already authenticated - inside chat');
+                    return true;
+                }).catch(() => {
+                    // Chat interface not found, might need QR scan
+                    return null;
+                })
     );
 }
 
@@ -100,12 +140,66 @@ function deleteSession() {
  * return the data used to create the QR Code
  */
 async function getQRCodeData() {
-    await page.waitForSelector(SELECTORS.QRCODE_DATA, { timeout: 60000 });
-    const qrcodeData = await page.evaluate((SELECTORS) => {
-        let qrcodeDiv = document.querySelector(SELECTORS.QRCODE_DATA);
-        return qrcodeDiv.getAttribute(SELECTORS.QRCODE_DATA_ATTR);
-    }, SELECTORS);
-    return await qrcodeData;
+    // First try to wait for the canvas element (new WhatsApp Web structure)
+    try {
+        await page.waitForSelector(SELECTORS.QRCODE_CANVAS, { timeout: 30000 });
+        console.log('Found QR code canvas, extracting data...');
+        
+        const qrcodeData = await page.evaluate((SELECTORS) => {
+            // Try to get the canvas element
+            let canvas = document.querySelector(SELECTORS.QRCODE_CANVAS);
+            if (canvas) {
+                // Get the canvas data as a data URL for web display
+                const canvasDataUrl = canvas.toDataURL();
+                
+                // Also try to get the raw QR code data from data-ref for terminal display
+                let qrcodeDiv = document.querySelector(SELECTORS.QRCODE_DATA);
+                const rawQrData = qrcodeDiv ? qrcodeDiv.getAttribute(SELECTORS.QRCODE_DATA_ATTR) : null;
+                
+                return {
+                    canvasDataUrl: canvasDataUrl,
+                    rawQrData: rawQrData,
+                    type: 'canvas'
+                };
+            }
+            
+            // Fallback: try to get from data-ref attribute (older WhatsApp Web)
+            let qrcodeDiv = document.querySelector(SELECTORS.QRCODE_DATA);
+            if (qrcodeDiv) {
+                const rawQrData = qrcodeDiv.getAttribute(SELECTORS.QRCODE_DATA_ATTR);
+                return {
+                    canvasDataUrl: null,
+                    rawQrData: rawQrData,
+                    type: 'data-ref'
+                };
+            }
+            
+            return null;
+        }, SELECTORS);
+        
+        if (qrcodeData) {
+            return qrcodeData;
+        }
+    } catch (error) {
+        console.log('Canvas method failed, trying fallback method...');
+    }
+    
+    // Fallback to original method for older WhatsApp Web versions
+    try {
+        await page.waitForSelector(SELECTORS.QRCODE_DATA, { timeout: 30000 });
+        const qrcodeData = await page.evaluate((SELECTORS) => {
+            let qrcodeDiv = document.querySelector(SELECTORS.QRCODE_DATA);
+            const rawQrData = qrcodeDiv ? qrcodeDiv.getAttribute(SELECTORS.QRCODE_DATA_ATTR) : null;
+            return {
+                canvasDataUrl: null,
+                rawQrData: rawQrData,
+                type: 'data-ref-fallback'
+            };
+        }, SELECTORS);
+        return qrcodeData;
+    } catch (error) {
+        throw new Error('Could not find QR code element using any method');
+    }
 }
 
 /**
@@ -124,14 +218,20 @@ async function generateQRCode() {
 }
 
 /**
- * Wait 30s to the qrCode be hidden on page
+ * Wait for QR code to be scanned by waiting for chat interface to appear
  */
 async function waitQRCode() {
-    // if user scan QR Code it will be hidden
+    console.log('⏳ Waiting for QR code to be scanned...');
     try {
-        await page.waitForSelector(SELECTORS.QRCODE_PAGE, { timeout: 30000, hidden: true });
+        // Wait for the chat interface to appear (means QR code was scanned)
+        await page.waitForFunction(
+            "document.getElementsByClassName('two')[0] !== undefined",
+            { timeout: 60000 }
+        );
+        console.log('✅ Chat interface detected - QR code was scanned!');
     } catch (err) {
-        throw await QRCodeExeption("Dont't be late to scan the QR Code.");
+        console.error('❌ QR code scan timeout or failed');
+        throw await QRCodeExeption("QR Code scan timeout. Please try again.");
     }
 }
 
