@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
+import nodemailer from 'nodemailer';
 import sendWhatsAppMessage from './sendWhapiOTP';
 import connectDB from './config/database';
 import cmsRoutes from './routes/cms';
@@ -16,7 +17,6 @@ const PORT = process.env.PORT || 3000;
 const otpStorage = new Map<string, { otp: string; expiry: number; attempts: number }>();
 
 // WhatsApp API configuration
-const WHATSAPP_API_ENABLED = true;
 
 const frontendUrl = process.env.FRONTEND_URL;
 
@@ -32,8 +32,9 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// JSON parser middleware
-app.use(express.json());
+// JSON parser middleware (increase limit for base64 PDFs)
+app.use(express.json({ limit: '5mb' }));
+app.use(express.urlencoded({ limit: '5mb', extended: true }));
 
 // Rate limiting middleware
 const otpRateLimit = rateLimit({
@@ -93,6 +94,24 @@ const isValidMobileNumber = (mobile: string): boolean => {
   const indianMobileRegex = /^91[6-9]\d{9}$/;
   return indianMobileRegex.test(normalizedNumber);
 };
+
+// Email (Nodemailer) configuration
+const smtpHost = 'smtp.gmail.com';
+const smtpPort = 465
+const smtpUser = process.env.SMTP_USER;
+const smtpPass = process.env.SMTP_PASS;
+const mailFrom = process.env.MAIL_FROM || smtpUser;
+
+const mailerEnabled = !!(smtpHost && smtpUser && smtpPass);
+
+const mailTransporter = mailerEnabled
+  ? nodemailer.createTransport({
+      host: smtpHost,
+      port: smtpPort,
+      secure: true,
+      auth: { user: smtpUser!, pass: smtpPass! }
+    })
+  : null;
 
 // SMS service function using whapi.cloud
 const sendSMSOTP = async (mobile: string, otp: string): Promise<{ success: boolean; method: string; error?: string }> => {
@@ -256,6 +275,49 @@ app.post('/api/auth/verify-otp', verifyRateLimit, (req, res) => {
       success: false,
       error: 'Internal server error'
     });
+  }
+});
+
+// Route to send estimate PDF via email
+app.post('/api/email/send-estimate', async (req, res) => {
+  try {
+    if (!mailerEnabled || !mailTransporter) {
+      return res.status(500).json({ success: false, error: 'Email service not configured' });
+    }
+
+    const { to, subject, text, html, fileName, fileBase64 } = req.body as {
+      to?: string;
+      subject?: string;
+      text?: string;
+      html?: string;
+      fileName?: string;
+      fileBase64?: string; // base64 without data URI prefix
+    };
+
+    if (!to || !fileBase64) {
+      return res.status(400).json({ success: false, error: 'Missing required fields: to, fileBase64' });
+    }
+
+    await mailTransporter.sendMail({
+      from: mailFrom,
+      to,
+      subject: subject || 'Your Interior Estimate',
+      text: text || 'Please find your interior estimate attached as a PDF.',
+      html,
+      attachments: [
+        {
+          filename: fileName || 'Interior_Estimate.pdf',
+          content: fileBase64,
+          encoding: 'base64',
+          contentType: 'application/pdf'
+        }
+      ]
+    });
+
+    res.json({ success: true, message: 'Email sent successfully' });
+  } catch (error) {
+    console.error('Error sending estimate email:', error);
+    res.status(500).json({ success: false, error: 'Failed to send email' });
   }
 });
 
