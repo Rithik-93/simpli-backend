@@ -113,7 +113,7 @@ const initializeWhatsAppSession = async (): Promise<void> => {
   try {
     console.log('🔄 Starting WhatsApp session...');
     const result = await wbm.start({ 
-      showBrowser: process.env.NODE_ENV === 'development', // Only show browser in development
+      showBrowser: false, // Always headless for VPS deployment
       qrCodeData: true,
       session: true, // Enable session persistence
       qrCodeValue: async (qrCodeData: any) => {

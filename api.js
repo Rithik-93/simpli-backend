@@ -24,7 +24,7 @@ const SELECTORS = {
 /**
  * Initialize browser, page and setup page desktop mode
  */
-async function start({ showBrowser = true, qrCodeData = true, session = true } = {}) {
+async function start({ showBrowser = false, qrCodeData = true, session = true } = {}) {
     if (!session) {
         deleteSession(tmpPath);
     }
@@ -32,8 +32,23 @@ async function start({ showBrowser = true, qrCodeData = true, session = true } =
     const args = {
         headless: !showBrowser,
         userDataDir: tmpPath,
-        args: ["--no-sandbox",
-            // "--blink-settings=imagesEnabled=false"]
+        args: [
+            "--no-sandbox",
+            "--disable-setuid-sandbox",
+            "--disable-dev-shm-usage",
+            "--disable-accelerated-2d-canvas",
+            "--no-first-run",
+            "--no-zygote",
+            "--single-process", // This might help on some VPS configurations
+            "--disable-gpu",
+            "--disable-extensions",
+            "--disable-background-timer-throttling",
+            "--disable-backgrounding-occluded-windows",
+            "--disable-renderer-backgrounding",
+            "--disable-features=TranslateUI",
+            "--disable-ipc-flooding-protection",
+            "--disable-web-security",
+            "--disable-features=VizDisplayCompositor"
         ]
     }
     try {
