@@ -309,7 +309,7 @@ async function sendTo(phoneOrContact, message) {
         }
         
         await sendButton.click();
-        await page.waitFor(2000);
+        await page.waitFor(1000);
         
         process.stdout.clearLine();
         process.stdout.cursorTo(0);

@@ -246,16 +246,22 @@ const sendSMSOTP = async (mobile: string, otp: string): Promise<{ success: boole
     try {
       console.log(`📱 Attempting to send OTP via WhatsApp (attempt ${attempt}/${maxRetries}) to ${mobile}`);
       
+      // Quick fail if session is disconnected and this is not the first attempt
+      if (attempt > 1 && sessionStatus === 'disconnected') {
+        throw new Error('WhatsApp session is disconnected');
+      }
+      
       // Initialize session if not already connected
       if (!wbmSession || sessionStatus !== 'connected') {
         console.log('🔄 WhatsApp session not ready, initializing...');
         await initializeWhatsAppSession();
       }
       
-      // Wait for session to be ready with timeout
+      // Wait for session to be ready with shorter timeout for OTP sending
       let attempts = 0;
-      while (sessionStatus === 'connecting' && attempts < 60) { // Increased timeout for QR scanning
-        console.log(`⏳ Waiting for WhatsApp authentication... (${attempts + 1}/60s)`);
+      const maxWaitTime = 10; // Reduced from 60s to 10s for faster OTP response
+      while (sessionStatus === 'connecting' && attempts < maxWaitTime) {
+        console.log(`⏳ Waiting for WhatsApp authentication... (${attempts + 1}/${maxWaitTime}s)`);
         await new Promise(resolve => setTimeout(resolve, 1000));
         attempts++;
       }
@@ -281,9 +287,9 @@ const sendSMSOTP = async (mobile: string, otp: string): Promise<{ success: boole
       
       sessionFailureCount++;
       
-      // Wait before retry (exponential backoff)
+      // Wait before retry (reduced backoff for faster OTP delivery)
       if (attempt < maxRetries) {
-        const delay = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s
+        const delay = Math.min(Math.pow(2, attempt) * 500, 3000); // 1s, 2s, 3s max
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
