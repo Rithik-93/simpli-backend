@@ -1,40 +1,33 @@
-import mongoose from 'mongoose';
+import { PrismaClient } from '@prisma/client';
 
-const connectDB = async (): Promise<void> => {
+// Initialize Prisma Client
+const prisma = new PrismaClient({
+  log: ['query', 'info', 'warn', 'error'],
+});
+
+// Connect to database
+export const connectDB = async (): Promise<void> => {
   try {
-    const mongoURI = process.env.MONGODB_URI;
+    await prisma.$connect();
+    console.log('✅ PostgreSQL Connected via Prisma');
     
-    if (!mongoURI) {
-      throw new Error('MONGODB_URI is not defined in environment variables');
-    }
-
-    const conn = await mongoose.connect(mongoURI, {
-      // These options are no longer needed in newer versions of Mongoose
-      // but keeping for compatibility
-    });
-
-    console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
-    
-    // Handle connection events
-    mongoose.connection.on('error', (err) => {
-      console.error('❌ MongoDB connection error:', err);
-    });
-
-    mongoose.connection.on('disconnected', () => {
-      console.log('⚠️ MongoDB disconnected');
-    });
-
-    // Graceful shutdown
+    // Handle graceful shutdown
     process.on('SIGINT', async () => {
-      await mongoose.connection.close();
-      console.log('🛑 MongoDB connection closed through app termination');
+      await prisma.$disconnect();
+      console.log('🛑 PostgreSQL connection closed through app termination');
+      process.exit(0);
+    });
+
+    process.on('SIGTERM', async () => {
+      await prisma.$disconnect();
+      console.log('🛑 PostgreSQL connection closed through app termination');
       process.exit(0);
     });
 
   } catch (error) {
-    console.error('❌ Error connecting to MongoDB:', error);
+    console.error('❌ Error connecting to PostgreSQL:', error);
     process.exit(1);
   }
 };
 
-export default connectDB; 
+export default prisma;

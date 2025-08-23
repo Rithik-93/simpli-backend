@@ -4,19 +4,15 @@ import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import nodemailer from 'nodemailer';
 import sendWhatsAppMessage from './sendWhapiOTP';
-import connectDB from './config/database';
+import { connectDB } from './config/database';
 import cmsRoutes from './routes/cms';
 
-// Load environment variables from .env file
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// In-memory storage for OTPs (use Redis or database in production)
 const otpStorage = new Map<string, { otp: string; expiry: number; attempts: number }>();
-
-// WhatsApp API configuration
 
 const frontendUrl = process.env.FRONTEND_URL;
 
@@ -24,55 +20,46 @@ if (!frontendUrl) {
   throw new Error('FRONTEND_URL is not set');
 }
 
-// CORS configuration
 app.use(cors({
-  origin: process.env.FRONTEND_URL, // your domain
+  origin: frontendUrl,
   methods: ["GET", "POST", "PUT", "DELETE"],
   allowedHeaders: ["Content-Type", "Authorization"]
 }));
 
-// JSON parser middleware (increase limit for base64 PDFs)
 app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ limit: '5mb', extended: true }));
 
-// Rate limiting middleware
 const otpRateLimit = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // limit each IP to 5 requests per windowMs
+  windowMs: 15 * 60 * 1000,
+  max: 5,
   message: {
     error: 'Too many OTP requests from this IP, please try again later.'
   }
 });
 
 const verifyRateLimit = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // limit each IP to 10 verification attempts per windowMs
+  windowMs: 15 * 60 * 1000,
+  max: 10,
   message: {
     error: 'Too many verification attempts from this IP, please try again later.'
   }
 });
 
-// Utility function to generate OTP
 const generateOTP = (): string => {
   return Math.floor(100000 + Math.random() * 900000).toString();
 };
 
-// Utility function to normalize mobile number (add 91 if needed)
 const normalizeMobileNumber = (mobile: string): string => {
-  // Remove all spaces and special characters
   let cleanNumber = mobile.replace(/[^\d]/g, '');
 
-  // If number starts with +91, remove + and return
   if (mobile.startsWith('+91')) {
     return cleanNumber;
   }
 
-  // If number starts with 91 and is 12 digits, return as is
   if (cleanNumber.startsWith('91') && cleanNumber.length === 12) {
     return cleanNumber;
   }
 
-  // If number is 10 digits and starts with 6,7,8,9 (Indian mobile), add 91
   if (cleanNumber.length === 10 && /^[6-9]/.test(cleanNumber)) {
     return '91' + cleanNumber;
   }
@@ -443,7 +430,7 @@ process.on('SIGINT', async () => {
   process.exit(0);
 });
 
-// Connect to MongoDB
+// Connect to PostgreSQL
 connectDB();
 
 // Start server

@@ -1,89 +1,82 @@
-import mongoose from 'mongoose';
 import dotenv from 'dotenv';
-import Item from '../models/Item';
-import Category from '../models/Category';
-import User from '../models/User';
+import prisma from '../config/database';
+import type { RoomType } from '../types/cms';
 
 // Load environment variables
 dotenv.config();
 
-const connectDB = async () => {
-  try {
-    const mongoURI = process.env.MONGODB_URI;
-    
-    if (!mongoURI) {
-      throw new Error('MONGODB_URI is not defined in environment variables');
-    }
+/**
+ * Updated Seed Data Structure (2024)
+ * 
+ * The new structure organizes items by:
+ * 1. Type: "Woodwork" or "Single Line Items"
+ * 2. Category under each type:
+ *    - Woodwork: Master Bedroom, Children Bedroom, Guest Bedroom, Living Room, Kitchen, Pooja Room
+ *    - Single Line Items: False Ceiling, Ceiling, Painting
+ * 
+ * This provides a cleaner hierarchical structure where all existing furniture
+ * and modular items fall under Woodwork categories, while service-based items
+ * fall under Single Line Items categories.
+ */
 
-    await mongoose.connect(mongoURI);
-    console.log('✅ MongoDB Connected for seeding');
-  } catch (error) {
-    console.error('❌ Error connecting to MongoDB:', error);
-    process.exit(1);
-  }
-};
-
-const seedCategories = async () => {
-  const categories = [
-    {
-      name: 'Master Bedroom',
-      type: 'furniture' as const,
-      description: 'Furniture items for master bedroom',
-      isActive: true
-    },
-    {
-      name: 'Children Bedroom',
-      type: 'furniture' as const,
-      description: 'Furniture items for children bedroom',
-      isActive: true
-    },
-    {
-      name: 'Guest Bedroom',
-      type: 'furniture' as const,
-      description: 'Furniture items for guest bedroom',
-      isActive: true
-    },
-    {
-      name: 'Living Room',
-      type: 'furniture' as const,
-      description: 'Furniture items for living room',
-      isActive: true
-    },
-    {
-      name: 'Kitchen',
-      type: 'furniture' as const,
-      description: 'Modular kitchen items',
-      isActive: true
-    },
-    {
-      name: 'Pooja Room',
-      type: 'furniture' as const,
-      description: 'Furniture items for pooja room',
-      isActive: true
-    },
-    {
-      name: 'Services',
-      type: 'singleLine' as const,
-      description: 'Per square foot services',
-      isActive: true
-    },
-    {
-      name: 'Optional Services',
-      type: 'service' as const,
-      description: 'Optional services for home decoration',
-      isActive: true
-    }
+const seedTypes = async () => {
+  const types = [
+    { name: 'Woodwork' },
+    { name: 'Single Line Items' }
   ];
 
   try {
-    // Clear existing categories
-    await Category.deleteMany({});
+    // Clear existing data
+    await prisma.item.deleteMany({});
+    await prisma.category.deleteMany({});
+    await prisma.type.deleteMany({});
     
-    // Insert new categories
-    const createdCategories = await Category.insertMany(categories);
-    console.log(`✅ Created ${createdCategories.length} categories`);
+    const createdTypes = await prisma.type.createMany({
+      data: types
+    });
     
-    return createdCategories;
+    console.log(`✅ Created ${createdTypes.count} types`);
+    
+    // Fetch created types for returning
+    const fetchedTypes = await prisma.type.findMany();
+    return fetchedTypes;
+  } catch (error) {
+    console.error('❌ Error seeding types:', error);
+    throw error;
+  }
+};
+
+const seedCategories = async (types: any[]) => {
+  const woodworkTypeId = types.find(t => t.name === 'Woodwork')?.id;
+  const singleLineTypeId = types.find(t => t.name === 'Single Line Items')?.id;
+
+  const categories = [
+    // Woodwork Categories
+    { name: 'Master Bedroom', typeId: woodworkTypeId },
+    { name: 'Children Bedroom', typeId: woodworkTypeId },
+    { name: 'Guest Bedroom', typeId: woodworkTypeId },
+    { name: 'Living Room', typeId: woodworkTypeId },
+    { name: 'Kitchen', typeId: woodworkTypeId },
+    { name: 'Pooja Room', typeId: woodworkTypeId },
+    
+    // Single Line Items Categories
+    { name: 'False Ceiling', typeId: singleLineTypeId },
+    { name: 'Ceiling', typeId: singleLineTypeId },
+    { name: 'Painting', typeId: singleLineTypeId }
+  ].filter(category => category.typeId); // Remove any with undefined typeId
+
+  try {
+    const createdCategories = await prisma.category.createMany({
+      data: categories
+    });
+    
+    console.log(`✅ Created ${createdCategories.count} categories`);
+    
+    // Fetch created categories for returning
+    const fetchedCategories = await prisma.category.findMany({
+      include: { type: true }
+    });
+    return fetchedCategories;
   } catch (error) {
     console.error('❌ Error seeding categories:', error);
     throw error;
@@ -92,262 +85,284 @@ const seedCategories = async () => {
 
 const seedItems = async (categories: any[]) => {
   const items = [
-    // Master Bedroom Items
+    // Master Bedroom Items (Woodwork)
     {
       name: 'Wardrobe',
-      category: 'Master Bedroom',
-      type: 'furniture' as const,
-      basePrice: 45000,
-      description: 'High-quality wardrobe with premium finish',
-      isActive: true
+      description: 'High-quality wardrobe with premium finish and ample storage',
+      availableInRooms: ['BHK_2', 'BHK_3', 'BHK_4'] as RoomType[],
+      pricePerSqFt: 450,
+      categoryId: categories.find(c => c.name === 'Master Bedroom' && c.type.name === 'Woodwork')?.id
     },
     {
       name: 'Study Table',
-      category: 'Master Bedroom',
-      type: 'furniture' as const,
-      basePrice: 15000,
-      description: 'Premium study table with storage',
-      isActive: true
+      description: 'Premium study table with storage compartments',
+      availableInRooms: ['BHK_2', 'BHK_3', 'BHK_4'] as RoomType[],
+      pricePerSqFt: 300,
+      categoryId: categories.find(c => c.name === 'Master Bedroom' && c.type.name === 'Woodwork')?.id
     },
     {
       name: 'TV Unit',
-      category: 'Master Bedroom',
-      type: 'furniture' as const,
-      basePrice: 25000,
-      description: 'Modern TV unit with storage',
-      isActive: true
+      description: 'Modern TV unit with storage and cable management',
+      availableInRooms: ['BHK_1', 'BHK_2', 'BHK_3', 'BHK_4'] as RoomType[],
+      pricePerSqFt: 400,
+      categoryId: categories.find(c => c.name === 'Master Bedroom' && c.type.name === 'Woodwork')?.id
     },
     {
       name: 'Bed Unit with Back Panel',
-      category: 'Master Bedroom',
-      type: 'furniture' as const,
-      basePrice: 35000,
-      description: 'Premium bed unit with back panel',
-      isActive: true
+      description: 'Premium bed unit with upholstered back panel',
+      availableInRooms: ['BHK_1', 'BHK_2', 'BHK_3', 'BHK_4'] as RoomType[],
+      pricePerSqFt: 500,
+      categoryId: categories.find(c => c.name === 'Master Bedroom' && c.type.name === 'Woodwork')?.id
+    },
+    {
+      name: 'Side Tables',
+      description: 'Elegant side tables for bedside storage',
+      availableInRooms: ['BHK_2', 'BHK_3', 'BHK_4'] as RoomType[],
+      pricePerSqFt: 250,
+      categoryId: categories.find(c => c.name === 'Master Bedroom' && c.type.name === 'Woodwork')?.id
     },
 
-    // Children Bedroom Items
+    // Children Bedroom Items (Woodwork)
     {
       name: 'Wardrobe',
-      category: 'Children Bedroom',
-      type: 'furniture' as const,
-      basePrice: 35000,
-      description: 'Colorful wardrobe for children',
-      isActive: true
+      description: 'Colorful and durable wardrobe designed for children',
+      availableInRooms: ['BHK_2', 'BHK_3', 'BHK_4'] as RoomType[],
+      pricePerSqFt: 400,
+      categoryId: categories.find(c => c.name === 'Children Bedroom' && c.type.name === 'Woodwork')?.id
     },
     {
       name: 'Study Table',
-      category: 'Children Bedroom',
-      type: 'furniture' as const,
-      basePrice: 12000,
-      description: 'Study table with storage for children',
-      isActive: true
+      description: 'Ergonomic study table with storage for children',
+      availableInRooms: ['BHK_2', 'BHK_3', 'BHK_4'] as RoomType[],
+      pricePerSqFt: 250,
+      categoryId: categories.find(c => c.name === 'Children Bedroom' && c.type.name === 'Woodwork')?.id
     },
     {
       name: 'Bed Unit with Back Panel',
-      category: 'Children Bedroom',
-      type: 'furniture' as const,
-      basePrice: 28000,
-      description: 'Bed unit with back panel for children',
-      isActive: true
+      description: 'Comfortable bed unit with colorful back panel for children',
+      availableInRooms: ['BHK_2', 'BHK_3', 'BHK_4'] as RoomType[],
+      pricePerSqFt: 450,
+      categoryId: categories.find(c => c.name === 'Children Bedroom' && c.type.name === 'Woodwork')?.id
+    },
+    {
+      name: 'Toy Storage Unit',
+      description: 'Organized toy storage with multiple compartments',
+      availableInRooms: ['BHK_2', 'BHK_3', 'BHK_4'] as RoomType[],
+      pricePerSqFt: 180,
+      categoryId: categories.find(c => c.name === 'Children Bedroom' && c.type.name === 'Woodwork')?.id
     },
 
-    // Guest Bedroom Items
+    // Guest Bedroom Items (Woodwork)
     {
       name: 'Wardrobe',
-      category: 'Guest Bedroom',
-      type: 'furniture' as const,
-      basePrice: 40000,
-      description: 'Elegant wardrobe for guest bedroom',
-      isActive: true
+      description: 'Elegant wardrobe with premium finish for guest bedroom',
+      availableInRooms: ['BHK_3', 'BHK_4'] as RoomType[],
+      pricePerSqFt: 420,
+      categoryId: categories.find(c => c.name === 'Guest Bedroom' && c.type.name === 'Woodwork')?.id
     },
     {
       name: 'Study Table',
-      category: 'Guest Bedroom',
-      type: 'furniture' as const,
-      basePrice: 14000,
-      description: 'Study table for guest bedroom',
-      isActive: true
+      description: 'Versatile study table for guest bedroom',
+      availableInRooms: ['BHK_3', 'BHK_4'] as RoomType[],
+      pricePerSqFt: 280,
+      categoryId: categories.find(c => c.name === 'Guest Bedroom' && c.type.name === 'Woodwork')?.id
     },
     {
       name: 'Bed Unit with Back Panel',
-      category: 'Guest Bedroom',
-      type: 'furniture' as const,
-      basePrice: 32000,
-      description: 'Bed unit with back panel for guest bedroom',
-      isActive: true
+      description: 'Comfortable bed unit with elegant back panel for guests',
+      availableInRooms: ['BHK_3', 'BHK_4'] as RoomType[],
+      pricePerSqFt: 480,
+      categoryId: categories.find(c => c.name === 'Guest Bedroom' && c.type.name === 'Woodwork')?.id
     },
 
-    // Living Room Items
+    // Living Room Items (Woodwork)
+    {
+      name: 'Sofa Set',
+      description: 'Premium 3-seater sofa with matching chairs',
+      availableInRooms: ['BHK_1', 'BHK_2', 'BHK_3', 'BHK_4'] as RoomType[],
+      pricePerSqFt: 800,
+      categoryId: categories.find(c => c.name === 'Living Room' && c.type.name === 'Woodwork')?.id
+    },
+    {
+      name: 'Coffee Table',
+      description: 'Modern coffee table with storage',
+      availableInRooms: ['BHK_1', 'BHK_2', 'BHK_3', 'BHK_4'] as RoomType[],
+      pricePerSqFt: 350,
+      categoryId: categories.find(c => c.name === 'Living Room' && c.type.name === 'Woodwork')?.id
+    },
     {
       name: 'TV Drawer Unit',
-      category: 'Living Room',
-      type: 'furniture' as const,
-      basePrice: 30000,
-      description: 'TV drawer unit for living room',
-      isActive: true
+      description: 'TV drawer unit with ample storage for living room',
+      availableInRooms: ['BHK_1', 'BHK_2', 'BHK_3', 'BHK_4'] as RoomType[],
+      pricePerSqFt: 600,
+      categoryId: categories.find(c => c.name === 'Living Room' && c.type.name === 'Woodwork')?.id
     },
     {
       name: 'TV Unit Paneling',
-      category: 'Living Room',
-      type: 'furniture' as const,
-      basePrice: 20000,
-      description: 'TV unit paneling for living room',
-      isActive: true
+      description: 'TV unit paneling for living room walls',
+      availableInRooms: ['BHK_1', 'BHK_2', 'BHK_3', 'BHK_4'] as RoomType[],
+      pricePerSqFt: 350,
+      categoryId: categories.find(c => c.name === 'Living Room' && c.type.name === 'Woodwork')?.id
+    },
+    {
+      name: 'Display Unit',
+      description: 'Elegant display unit for showcasing items',
+      availableInRooms: ['BHK_2', 'BHK_3', 'BHK_4'] as RoomType[],
+      pricePerSqFt: 450,
+      categoryId: categories.find(c => c.name === 'Living Room' && c.type.name === 'Woodwork')?.id
+    },
+    {
+      name: 'Bookshelf',
+      description: 'Modern bookshelf with adjustable shelves',
+      availableInRooms: ['BHK_2', 'BHK_3', 'BHK_4'] as RoomType[],
+      pricePerSqFt: 320,
+      categoryId: categories.find(c => c.name === 'Living Room' && c.type.name === 'Woodwork')?.id
     },
 
-    // Kitchen Items
+    // Kitchen Items (Woodwork)
     {
       name: 'Base Unit - Parallel',
-      category: 'Kitchen',
-      type: 'furniture' as const,
-      basePrice: 75000,
-      description: 'Parallel base unit for kitchen',
-      isActive: true
+      description: 'Parallel base unit for efficient kitchen layout',
+      availableInRooms: ['BHK_1', 'BHK_2', 'BHK_3', 'BHK_4'] as RoomType[],
+      pricePerSqFt: 1200,
+      categoryId: categories.find(c => c.name === 'Kitchen' && c.type.name === 'Woodwork')?.id
     },
     {
       name: 'Base Unit - L-Shaped',
-      category: 'Kitchen',
-      type: 'furniture' as const,
-      basePrice: 85000,
-      description: 'L-shaped base unit for kitchen',
-      isActive: true
+      description: 'L-shaped base unit for corner kitchen spaces',
+      availableInRooms: ['BHK_2', 'BHK_3', 'BHK_4'] as RoomType[],
+      pricePerSqFt: 1400,
+      categoryId: categories.find(c => c.name === 'Kitchen' && c.type.name === 'Woodwork')?.id
     },
     {
       name: 'Base Unit - Island',
-      category: 'Kitchen',
-      type: 'furniture' as const,
-      basePrice: 95000,
-      description: 'Island base unit for kitchen',
-      isActive: true
+      description: 'Island base unit for spacious kitchens',
+      availableInRooms: ['BHK_3', 'BHK_4'] as RoomType[],
+      pricePerSqFt: 1600,
+      categoryId: categories.find(c => c.name === 'Kitchen' && c.type.name === 'Woodwork')?.id
+    },
+    {
+      name: 'Wall Unit',
+      description: 'Wall-mounted storage units for kitchen',
+      availableInRooms: ['BHK_1', 'BHK_2', 'BHK_3', 'BHK_4'] as RoomType[],
+      pricePerSqFt: 900,
+      categoryId: categories.find(c => c.name === 'Kitchen' && c.type.name === 'Woodwork')?.id
     },
     {
       name: 'Tandem Baskets',
-      category: 'Kitchen',
-      type: 'furniture' as const,
-      basePrice: 8000,
-      description: 'Tandem baskets for kitchen storage',
-      isActive: true
+      description: 'Tandem baskets for efficient kitchen storage',
+      availableInRooms: ['BHK_1', 'BHK_2', 'BHK_3', 'BHK_4'] as RoomType[],
+      pricePerSqFt: 150,
+      categoryId: categories.find(c => c.name === 'Kitchen' && c.type.name === 'Woodwork')?.id
     },
     {
       name: 'Bottle Pullout',
-      category: 'Kitchen',
-      type: 'furniture' as const,
-      basePrice: 6000,
-      description: 'Bottle pullout for kitchen',
-      isActive: true
+      description: 'Bottle pullout for organized kitchen storage',
+      availableInRooms: ['BHK_1', 'BHK_2', 'BHK_3', 'BHK_4'] as RoomType[],
+      pricePerSqFt: 120,
+      categoryId: categories.find(c => c.name === 'Kitchen' && c.type.name === 'Woodwork')?.id
     },
     {
       name: 'Corner Unit',
-      category: 'Kitchen',
-      type: 'furniture' as const,
-      basePrice: 12000,
-      description: 'Corner unit for kitchen',
-      isActive: true
+      description: 'Corner unit for maximizing kitchen space',
+      availableInRooms: ['BHK_2', 'BHK_3', 'BHK_4'] as RoomType[],
+      pricePerSqFt: 200,
+      categoryId: categories.find(c => c.name === 'Kitchen' && c.type.name === 'Woodwork')?.id
     },
     {
       name: 'Wicker Basket',
-      category: 'Kitchen',
-      type: 'furniture' as const,
-      basePrice: 4000,
-      description: 'Wicker basket for kitchen storage',
-      isActive: true
+      description: 'Wicker basket for stylish kitchen storage',
+      availableInRooms: ['BHK_1', 'BHK_2', 'BHK_3', 'BHK_4'] as RoomType[],
+      pricePerSqFt: 80,
+      categoryId: categories.find(c => c.name === 'Kitchen' && c.type.name === 'Woodwork')?.id
     },
 
-    // Pooja Room Items
+    // Pooja Room Items (Woodwork)
     {
       name: 'Pooja Unit',
-      category: 'Pooja Room',
-      type: 'furniture' as const,
-      basePrice: 25000,
-      description: 'Traditional pooja unit',
-      isActive: true
+      description: 'Traditional pooja unit with storage',
+      availableInRooms: ['BHK_2', 'BHK_3', 'BHK_4'] as RoomType[],
+      pricePerSqFt: 800,
+      categoryId: categories.find(c => c.name === 'Pooja Room' && c.type.name === 'Woodwork')?.id
     },
     {
       name: 'Doors',
-      category: 'Pooja Room',
-      type: 'furniture' as const,
-      basePrice: 15000,
-      description: 'Doors for pooja room',
-      isActive: true
+      description: 'Elegant doors for pooja room',
+      availableInRooms: ['BHK_2', 'BHK_3', 'BHK_4'] as RoomType[],
+      pricePerSqFt: 300,
+      categoryId: categories.find(c => c.name === 'Pooja Room' && c.type.name === 'Woodwork')?.id
+    },
+    {
+      name: 'Storage Cabinet',
+      description: 'Storage cabinet for pooja room essentials',
+      availableInRooms: ['BHK_2', 'BHK_3', 'BHK_4'] as RoomType[],
+      pricePerSqFt: 450,
+      categoryId: categories.find(c => c.name === 'Pooja Room' && c.type.name === 'Woodwork')?.id
     },
 
-    // Services
+    // Single Line Items - False Ceiling
     {
-      name: 'False Ceiling',
-      category: 'Services',
-      type: 'singleLine' as const,
-      basePrice: 120,
-      description: 'False ceiling installation per sq ft',
-      isActive: true
+      name: 'Gypsum False Ceiling',
+      description: 'Premium gypsum false ceiling with smooth finish',
+      availableInRooms: ['BHK_1', 'BHK_2', 'BHK_3', 'BHK_4'] as RoomType[],
+      pricePerSqFt: 85,
+      categoryId: categories.find(c => c.name === 'False Ceiling' && c.type.name === 'Single Line Items')?.id
     },
     {
-      name: 'Ceiling Painting',
-      category: 'Services',
-      type: 'singleLine' as const,
-      basePrice: 25,
-      description: 'Ceiling painting per sq ft',
-      isActive: true
-    },
-    {
-      name: 'Electrical & Wiring',
-      category: 'Services',
-      type: 'singleLine' as const,
-      basePrice: 80,
-      description: 'Electrical and wiring per sq ft',
-      isActive: true
+      name: 'Pop False Ceiling',
+      description: 'Plaster of Paris false ceiling with decorative designs',
+      availableInRooms: ['BHK_1', 'BHK_2', 'BHK_3', 'BHK_4'] as RoomType[],
+      pricePerSqFt: 95,
+      categoryId: categories.find(c => c.name === 'False Ceiling' && c.type.name === 'Single Line Items')?.id
     },
 
-    // Optional Services
+    // Single Line Items - Ceiling
     {
-      name: 'Sofa',
-      category: 'Optional Services',
-      type: 'service' as const,
-      basePrice: 50000,
-      description: 'Premium quality sofa for your home',
-      isActive: true
+      name: 'Cement Ceiling',
+      description: 'Standard cement ceiling finish',
+      availableInRooms: ['BHK_1', 'BHK_2', 'BHK_3', 'BHK_4'] as RoomType[],
+      pricePerSqFt: 45,
+      categoryId: categories.find(c => c.name === 'Ceiling' && c.type.name === 'Single Line Items')?.id
     },
     {
-      name: 'Dining Table',
-      category: 'Optional Services',
-      type: 'service' as const,
-      basePrice: 35000,
-      description: 'Premium dining table for your home',
-      isActive: true
+      name: 'Textured Ceiling',
+      description: 'Textured ceiling finish with decorative patterns',
+      availableInRooms: ['BHK_1', 'BHK_2', 'BHK_3', 'BHK_4'] as RoomType[],
+      pricePerSqFt: 65,
+      categoryId: categories.find(c => c.name === 'Ceiling' && c.type.name === 'Single Line Items')?.id
+    },
+
+    // Single Line Items - Painting
+    {
+      name: 'Interior Wall Painting',
+      description: 'Premium interior wall painting with quality paint',
+      availableInRooms: ['BHK_1', 'BHK_2', 'BHK_3', 'BHK_4'] as RoomType[],
+      pricePerSqFt: 25,
+      categoryId: categories.find(c => c.name === 'Painting' && c.type.name === 'Single Line Items')?.id
     },
     {
-      name: 'Carpets',
-      category: 'Optional Services',
-      type: 'service' as const,
-      basePrice: 15000,
-      description: 'Premium carpets for your home',
-      isActive: true
+      name: 'Exterior Wall Painting',
+      description: 'Weather-resistant exterior wall painting',
+      availableInRooms: ['BHK_1', 'BHK_2', 'BHK_3', 'BHK_4'] as RoomType[],
+      pricePerSqFt: 35,
+      categoryId: categories.find(c => c.name === 'Painting' && c.type.name === 'Single Line Items')?.id
     },
     {
-      name: 'Designer Lights',
-      category: 'Optional Services',
-      type: 'service' as const,
-      basePrice: 25000,
-      description: 'Premium designer lights for your home',
-      isActive: true
-    },
-    {
-      name: 'Curtains',
-      category: 'Optional Services',
-      type: 'service' as const,
-      basePrice: 20000,
-      description: 'Premium curtains for your home',
-      isActive: true
+      name: 'Texture Painting',
+      description: 'Decorative texture painting for walls',
+      availableInRooms: ['BHK_1', 'BHK_2', 'BHK_3', 'BHK_4'] as RoomType[],
+      pricePerSqFt: 45,
+      categoryId: categories.find(c => c.name === 'Painting' && c.type.name === 'Single Line Items')?.id
     }
-  ];
+  ].filter(item => item.categoryId); // Remove any with undefined categoryId
 
   try {
-    // Clear existing items
-    await Item.deleteMany({});
-    
     // Insert new items
-    const createdItems = await Item.insertMany(items);
-    console.log(`✅ Created ${createdItems.length} items`);
+    const createdItems = await prisma.item.createMany({
+      data: items
+    });
+    
+    console.log(`✅ Created ${createdItems.count} items`);
     
     return createdItems;
   } catch (error) {
@@ -356,66 +371,37 @@ const seedItems = async (categories: any[]) => {
   }
 };
 
-const seedUsers = async () => {
-  const users = [
-    {
-      username: 'admin',
-      email: 'admin@interior-calculator.com',
-      password: 'admin123',
-      role: 'admin' as const,
-      isActive: true
-    },
-    {
-      username: 'editor',
-      email: 'editor@interior-calculator.com',
-      password: 'editor123',
-      role: 'editor' as const,
-      isActive: true
-    }
-  ];
-
-  try {
-    // Clear existing users
-    await User.deleteMany({});
-    
-    // Insert new users
-    const createdUsers = await User.insertMany(users);
-    console.log(`✅ Created ${createdUsers.length} users`);
-    
-    return createdUsers;
-  } catch (error) {
-    console.error('❌ Error seeding users:', error);
-    throw error;
-  }
-};
-
 const seedDatabase = async () => {
   try {
     console.log('🌱 Starting database seeding...');
     
-    await connectDB();
+    // Connect to database
+    await prisma.$connect();
+    console.log('✅ PostgreSQL Connected for seeding');
     
-    // Seed categories first
-    const categories = await seedCategories();
+    // Seed types first
+    const types = await seedTypes();
+    
+    // Seed categories
+    const categories = await seedCategories(types);
     
     // Seed items
     const items = await seedItems(categories);
     
-    // Seed users
-    const users = await seedUsers();
-    
     console.log('✅ Database seeding completed successfully!');
     console.log(`📊 Summary:`);
+    console.log(`   - Types: ${types.length}`);
     console.log(`   - Categories: ${categories.length}`);
-    console.log(`   - Items: ${items.length}`);
-    console.log(`   - Users: ${users.length}`);
+    console.log(`   - Items: ${items.count}`);
     
+    await prisma.$disconnect();
     process.exit(0);
   } catch (error) {
     console.error('❌ Database seeding failed:', error);
+    await prisma.$disconnect();
     process.exit(1);
   }
 };
 
 // Run the seeding script
-seedDatabase(); 
+seedDatabase();
